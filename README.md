@@ -8,7 +8,7 @@ A browser based game which is an infusion of 2 gaming frameworks (invaders and b
 
 -Added sound effects with utilizing WebAudioX API. (https://github.com/erichlof/webaudiox.ConvolverHelper)
 
--Implemented conditional bonus point/life scoring algorithms in accordance to number of tiles killed.
+-Implemented conditional bonus point/life scoring algorithms in accordance with the number of tiles killed.
 
 -Added new textures/sprites.
 
