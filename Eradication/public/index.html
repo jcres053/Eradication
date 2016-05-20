@@ -1,0 +1,509 @@
+ <!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Eradication: Game by Juan A. Crespo</title>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+    <script src="js/webAudiox.js"></script>
+
+     <script>
+    // create WebAudio API context
+    var context = new AudioContext();
+
+    // Create lineOut
+    var lineOut = new WebAudiox.LineOut(context);
+
+    // load a sound and play it immediatly
+    WebAudiox.loadBuffer(context, 'audio/start1.mp3', function(buffer){
+        // init AudioBufferSourceNode
+        var source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(lineOut.destination);
+
+        // start the sound now
+        source.start(0);
+    });
+
+
+</script>
+
+    <style>* { padding: 0; margin: 0; }
+
+            body {
+
+                text-align: center;
+                background-image: url('img/background.jpg');
+
+                };
+
+    </style>
+    <script src="js/phaser.min.js"></script>
+    <script src="js/score.js"></script>
+    <script src="js/group.js"></script>
+    
+</head>
+<body>
+<div class="container text-info"><b>Eradication © Copyright 2016 Juan Anthony Crespo</b></div>
+<script>
+
+// phaserCreate the game object itself
+var game = new Phaser.Game(
+    800, 600,                       // 800 x 600 rebackgroundolution.
+    Phaser.AUTO, null,                 // Allow Phaser to determine Canvas or WebGL
+     {                               // Functions (callbacks) for Phaser to call in
+        preload: phaserPreload,     // in different states of its execution
+        create: phaserCreate,
+        update: phaserUpdate
+    }
+);
+
+// Commonly it's not a good idea to pollute the JS global namespace but as it's
+// just an example we try keeping it as simple as possible and just introduce
+// the variables here
+
+// Few game related variables that we'll leave undefined
+var ball;
+var paddle;
+var tiles;
+var livesText;
+var bonusLife;
+var explosions;
+var pause_label;
+var pause_game;
+var introText;
+var bonusText;
+var gameOver;
+var background;
+var shouldLoop = false;
+var killOnComplete = true;
+ 
+var ballOnPaddle = true;
+var lives = 4;
+var score = 0;
+var diff = 0;
+
+var defaultTextOptions = {
+    font: "20px Arial",
+    align: "left",
+    fill: "#FAF205"
+};
+
+var boldTextOptions = {
+    font: "40px Arial",
+    fill: "#FAF205",
+    align: "center"
+};
+
+
+
+/**
+ * Preload callback. Used to load all assets into Phaser.
+ */
+function phaserPreload() {
+
+    game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+    game.scale.pageAlignHorizontally = true;
+    game.scale.pageAlignVertically = true;
+    game.load.spritesheet("kaboom", "/img/explode.png", 128, 128);
+    // Loading the background abackground an image
+    game.load.image("background", "/img/background_1.jpg");
+    // Loading the tiles
+    game.load.spritesheet("tile0", "/img/space_ship6.png", 32, 18);
+     
+
+
+    // Loading the paddle and the ball
+    game.load.image("paddle", "/img/paddle3.png");
+    game.load.image("ball", "/img/ball2.png");
+    game.load.image("introText", "/img/invasion.jpg");
+ }
+
+
+/**
+ * Create callback. Used to create all game related objects, set states and other pre-game running
+ * details.
+ */
+function phaserCreate() {
+    game.physics.startSystem(Phaser.Physics.ARCADE);
+    // All walls collide except the bottom
+    game.physics.arcade.checkCollision.down = false;
+    // Using the in-game name to fetch the loaded asset for the Background object
+    background = game.add.tileSprite(0, 0, 800, 600, "background");
+
+    // Creating a tile group
+    tiles = game.add.group();
+    tiles.x = -100;
+    tiles.y = -35;
+
+
+    var tween = game.add.tween(tiles).to( { x: 100 }, 10000, Phaser.Easing.Linear.None, true, 0, 1000, true);
+  
+    tiles.enableBody = true;
+    tiles.physicsdBodyType = Phaser.Physics.ARCADE;
+    // Creating N tiles into the tile group
+    for (var y = 0; y < 5; y++) {
+        for (var x = 0; x < 16; x++) {
+            // Randomizing the tile sprite we load for the tile
+            var randomTileNumber = Math.floor(Math.random() * 1);
+            var tile = tiles.create(120 + (x * 36), 100 + (y * 52), "tile" + randomTileNumber);
+            tile.body.bounce.set(1);
+            game.physics.enable(tile, Phaser.Physics.ARCADE);
+            tile.body.immovable = true;
+            tile.animations.add('fly', [ 0, 1, 2, 3 ], 20, true);
+            tile.play('fly');
+            tile.body.moves = false;
+
+        }
+    }
+
+
+    // Setup the player -- paddle
+    paddle = game.add.sprite(game.world.centerX, 500, "paddle");
+    paddle.anchor.setTo(0.5, 0.5);
+    game.physics.enable(paddle, Phaser.Physics.ARCADE);
+    paddle.body.collideWorldBounds = true;
+    paddle.body.bounce.set(1);
+    paddle.body.immovable = true;
+
+    // phaserCreate the ball
+    ball = game.add.sprite(game.world.centerX, paddle.y - 16, "ball");
+    ball.anchor.set(0.5);
+    ball.checkWorldBounds = true;
+    game.physics.enable(ball, Phaser.Physics.ARCADE);
+    ball.body.collideWorldBounds = true;
+    ball.body.bounce.set(1);
+    // When it goes out of bounds we'll call the function 'death'
+    ball.events.onOutOfBounds.add(helpers.death, this);
+
+    gameOver = game.add.text(680, 550, "", defaultTextOptions);
+    bonusLife = game.add.text(680, 550, "", defaultTextOptions);
+    bonusText = game.add.text(680, 550, "", defaultTextOptions);
+    gameOver.anchor.setTo(1.2, 1.2); 
+    bonusText.anchor.setTo(0.38, 4.5);  
+    bonusLife.anchor.setTo(1.8, 17.8); 
+
+
+    // Setup score text
+    scoreText = game.add.text(32, 550, "score: 0", defaultTextOptions);
+    livesText = game.add.text(680, 550, "lives: 4", defaultTextOptions);
+    introText = game.add.tileSprite(45, 50, 800, 600, "introText");
+    introText.anchor.setTo(0.056, 0.085);
+
+    game.input.onDown.add(helpers.release, this);
+
+    var grd = livesText.context.createLinearGradient(7, 5, 10, livesText.height);
+              scoreText.context.createLinearGradient(7, 5, 10, livesText.height);
+              gameOver.context.createLinearGradient(7, 5, 10, livesText.height);
+              bonusLife.context.createLinearGradient(7, 5, 10, livesText.height);
+              bonusText.context.createLinearGradient(7, 5, 10, livesText.height);
+
+    //  Add in 2 color stops
+    grd.addColorStop(0, '#F50511');   
+    grd.addColorStop(1, '#FAF205');
+
+    //  And apply to the Text
+    livesText.fill = grd;
+    scoreText.fill = grd;
+    gameOver.fill = grd;
+    bonusLife.fill = grd;
+    bonusText.fill = grd;
+
+   
+
+    
+
+            //  An explosion pool
+    explosions = game.add.group();
+    explosions.createMultiple(30, 'kaboom');
+    explosions.forEach(setupTiles, this);
+    };
+
+function setupTiles (tile0) {
+
+    tile0.animations.add('kaboom');
+
+}
+
+/**
+ * Phaser Engines update loop that gets called every phaserUpdate.
+ */
+function phaserUpdate () {
+
+    paddle.x = game.input.x;
+
+    // Making sure the player does not move out of bounds
+    if (paddle.x < 24) {
+        paddle.x = 24;
+    } else if (paddle.x > game.width - 24) {
+        paddle.x = game.width - 24;
+    }
+
+    if (ballOnPaddle) {
+        // Setting the ball on the paddle when player has it
+        ball.body.x = paddle.x;
+    } else {
+        // Check collisions
+        game.physics.arcade.collide(ball, paddle, helpers.ballCollideWithPaddle, null, this);
+        game.physics.arcade.collide(ball, tiles, helpers.ballCollideWithTile, null, this);
+    }
+}
+
+/**
+ * Set of helper functions.
+ */
+var helpers = {
+    /**
+     * Releases ball from the paddle.
+     */
+    release: function() {
+
+        /*
+        Code for the pause menu
+    */
+
+    // Create a label to use as a button
+    pause_label = game.add.text(100, 20, 'Pause', { font: '24px Arial', fill: '#ffffff' });
+    pause_label.inputEnabled = true;
+    pause_label.events.onInputUp.add(function () {
+        // When the paus button is pressed, we pause the game
+        game.paused = true;
+
+        // Then add the menu
+        pause_game = game.add.sprite(2, 2);
+        pause_game.anchor.setTo(-0.5, -0.5);
+
+         
+    });
+
+    // Add a input listener that can help us return from being paused
+    game.input.onDown.add(unpause, self);
+
+    // And finally the method that handels the pause menu
+    function unpause(event){
+        // Only act if paused
+        if(game.paused){
+            // Calculate the corners of the menu
+            var x1 = 2 - 270/2, x2 = 2 + 270/2,
+                y1 = 2 - 180/2, y2 = 2 + 180/2;
+
+                // Remove the menu and the label
+                pause_game.destroy();
+
+                // Unpause the game
+                game.paused = false;
+            }
+        }
+
+        //Load sound and play it as bullets are fired.
+            WebAudiox.loadBuffer(context, 'audio/launch.mp3', function(buffer){
+            // init AudioBufferSourceNode
+            var source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(lineOut.destination);
+
+        // start the sound now
+        source.start(0);
+    });
+
+        if (ballOnPaddle) {
+            ballOnPaddle = false;
+            ball.body.velocity.y = -300;
+            ball.body.velocity.x = -75;
+            introText.visible = false;
+        }
+    },
+
+    /**
+     * Ball went out of bounds.
+     */
+    death: function() {
+
+          //Load sound and play it as bullets are fired.
+            WebAudiox.loadBuffer(context, 'audio/fail.mp3', function(buffer){
+            // init AudioBufferSourceNode
+            var source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(lineOut.destination);
+
+        // start the sound now
+        source.start(0);
+    });
+
+        lives--;
+        livesText.text = "lives: " + lives;
+
+        if (lives === 0) {
+            helpers.gameOver();
+        } else {
+            ballOnPaddle = true;
+            ball.reset(paddle.body.x + 16, paddle.y - 16);
+        }
+    },
+
+    /**
+     * Game over, all lives lost.
+     */
+    gameOver: function() {
+        ball.body.velocity.setTo(0, 0);
+        gameOver.text = "Game Over! Refresh Browser for new game";
+        gameOver.visible = true;
+        game.paused = true;
+    },
+
+    /**
+     * Callback for when ball collides with Tiles.
+     */
+    ballCollideWithTile: function(ball, tile) {
+        tile.kill();
+
+        // create an explosion 
+    var explosion = explosions.getFirstExists(false);
+    explosion.reset(tile.body.x, tile.body.y);
+    explosion.play('kaboom', 30, shouldLoop, killOnComplete);
+
+        //Load sound and play it as bullets are fired.
+            WebAudiox.loadBuffer(context, 'audio/break.mp3', function(buffer){
+            // init AudioBufferSourceNode
+            var source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(lineOut.destination);
+
+        // start the sound now
+        source.start(0);
+    });
+
+        score += 10;
+            scoreText.text = "score: " + score;
+
+        // Bonus life 
+        if (score % 450 == 0) {
+
+            bonusLife.text = "- Bonus life +1 -";
+            bonusLife.visible = true;
+            ballOnPaddle = true;
+            ball.reset(paddle.body.x + 16, paddle.y - 16);
+            //Load sound and play it as bullets are fired.
+            WebAudiox.loadBuffer(context, 'audio/bonus.mp3', function(buffer){
+            // init AudioBufferSourceNode
+            var source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(lineOut.destination);
+
+        // start the sound now
+        source.start(0);
+    });
+            lives++;
+            diff++;
+            scoreText.text = "score: " + score;
+            livesText.text = "lives: " + lives;
+            
+
+             
+     } else {
+
+            bonusLife.visible = false;
+     } 
+
+        //  Are they any tiles left?
+        while (tiles.countLiving() <= 0) {
+            //  New level start
+
+            //Load sound and play it as bullets are fired.
+            WebAudiox.loadBuffer(context, 'audio/next_level.mp3', function(buffer){
+            // init AudioBufferSourceNode
+            var source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(lineOut.destination);
+
+        // start the sound now
+        source.start(0);
+    });
+             
+            scoreText.text = "score: " + score;
+            
+            //  Attach ball to the players paddle
+            ballOnPaddle = true;
+            ball.body.velocity.set(0);
+            ball.reset(paddle.body.x + 16, paddle.y - 16);
+             
+            // Tell tiles to revive
+            tiles.callAll("revive");
+            diff++;
+
+            ballOnPaddle = false;
+            ball.body.velocity.y = -340;
+            ball.body.velocity.x = -105;
+         
+           
+        }
+
+
+        // Bonus for killing 25 tiles
+        if (tiles.countDead() % 25 == 0) {
+            //Load sound and play it as bullets are fired.
+            WebAudiox.loadBuffer(context, 'audio/score_bonus.mp3', function(buffer){
+            // init AudioBufferSourceNode
+            var source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(lineOut.destination);
+
+        // start the sound now
+        source.start(0);
+    });
+
+            score += 20;
+            bonusText.text = "Score Bonus +20!";
+            bonusText.visible = true;
+
+        }  
+
+        if (tiles.countDead() % 27 == 0) {
+
+            bonusText.visible = false;
+        }
+
+    },
+
+    /**
+     * Callback for when ball collides with the players paddle.
+     */
+     ballCollideWithPaddle: function(ball, paddle) {
+
+          //Load sound and play it as bullets are fired.
+            WebAudiox.loadBuffer(context, 'audio/bounce.mp3', function(buffer){
+            // init AudioBufferSourceNode
+            var source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(lineOut.destination);
+
+        // start the sound now
+        source.start(0);
+    });
+         
+
+         // Super simplistic bounce physics for the ball movement
+         if (ball.x < paddle.x) {
+             //  Ball is on the left-hand side
+             diff = paddle.x - ball.x;
+             ball.body.velocity.x = (-10 * diff);
+         } else if (ball.x > paddle.x) {
+             //  Ball is on the right-hand side
+             diff = ball.x -paddle.x;
+             ball.body.velocity.x = (10 * diff);
+         } else {
+             //  Ball is perfectly in the middle
+             //  Add a little random X to stop it bouncing straight up!
+             ball.body.velocity.x = 2 + Math.random() * 8;
+         }
+     }
+};
+
+
+
+</script>
+</body>
+</html>
