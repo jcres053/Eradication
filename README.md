@@ -1,4 +1,4 @@
-# Eradication
+# Eradication (Beta)
 
 https://eradication.firebaseapp.com/
 
